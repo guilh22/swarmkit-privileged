@@ -9,7 +9,7 @@ on:
 
 env:
   DOCKER_SWARMKIT_USE_CONTAINER: 1
-  IMAGE_NAME: moby/swarmkit
+  IMAGE_NAME: guilh22/swarmkit-privileged
 
 jobs:
   build-dev:
