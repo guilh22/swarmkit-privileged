@@ -5810,6 +5810,13 @@ file {
       type: TYPE_INT64
       json_name: "oomScoreAdj"
     }
+    field {
+      name: "privileged"
+      number: 31
+      label: LABEL_OPTIONAL
+      type: TYPE_BOOL
+      json_name: "privileged"
+    }
     nested_type {
       name: "LabelsEntry"
       field {

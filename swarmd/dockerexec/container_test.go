@@ -332,3 +332,23 @@ func TestUlimits(t *testing.T) {
 		t.Fatalf("expected %v, got %v", expected, actual)
 	}
 }
+
+func TestPrivileged(t *testing.T) {
+	c := containerConfig{
+		task: &api.Task{
+			Spec: api.TaskSpec{
+				Runtime: &api.TaskSpec_Container{
+					Container: &api.ContainerSpec{
+						Privileged: true,
+					},
+				},
+			},
+		},
+	}
+
+	expected := true
+	actual := c.hostConfig().Privileged
+	if !reflect.DeepEqual(actual, expected) {
+		t.Fatalf("expected %v, got %v", expected, actual)
+	}
+}
