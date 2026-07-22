@@ -8,8 +8,8 @@ import (
 	"sync"
 
 	"github.com/container-storage-interface/spec/lib/go/csi"
-	"github.com/golang/protobuf/ptypes/wrappers"
 	"google.golang.org/grpc"
+	"google.golang.org/protobuf/types/known/wrapperspb"
 
 	"github.com/moby/swarmkit/v2/api"
 	mobyplugin "github.com/moby/swarmkit/v2/node/plugin"
@@ -78,7 +78,7 @@ func (f *fakeIdentityClient) GetPluginCapabilities(ctx context.Context, _ *csi.G
 
 func (f *fakeIdentityClient) Probe(ctx context.Context, in *csi.ProbeRequest, _ ...grpc.CallOption) (*csi.ProbeResponse, error) {
 	return &csi.ProbeResponse{
-		Ready: &wrappers.BoolValue{
+		Ready: &wrapperspb.BoolValue{
 			Value: true,
 		},
 	}, nil

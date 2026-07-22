@@ -251,7 +251,7 @@ func (s *Scheduler) enqueue(t *api.Task) {
 	s.unassignedTasks[t.ID] = t
 }
 
-func (s *Scheduler) createTask(ctx context.Context, t *api.Task) bool {
+func (s *Scheduler) createTask(_ context.Context, t *api.Task) bool {
 	// Ignore all tasks that have not reached PENDING
 	// state, and tasks that no longer consume resources.
 	if t.Status.State < api.TaskStatePending || t.Status.State > api.TaskStateRunning {
@@ -643,7 +643,7 @@ func (s *Scheduler) applySchedulingDecisions(ctx context.Context, schedulingDeci
 }
 
 // taskFitNode checks if a node has enough resources to accommodate a task.
-func (s *Scheduler) taskFitNode(ctx context.Context, t *api.Task, nodeID string) *api.Task {
+func (s *Scheduler) taskFitNode(_ context.Context, t *api.Task, nodeID string) *api.Task {
 	nodeInfo, err := s.nodeSet.nodeInfo(nodeID)
 	if err != nil {
 		// node does not exist in set (it may have been deleted)
@@ -787,9 +787,11 @@ func (s *Scheduler) scheduleNTasksOnSubtree(ctx context.Context, n int, taskGrou
 
 	// Try to make branches even until either all branches are
 	// full, or all tasks have been scheduled.
-	for tasksScheduled != n && len(noRoom) != len(tree.next) {
+	converging := true
+	for tasksScheduled != n && len(noRoom) != len(tree.next) && converging {
 		desiredTasksPerBranch := (tasksInUsableBranches + n - tasksScheduled) / (len(tree.next) - len(noRoom))
 		remainder := (tasksInUsableBranches + n - tasksScheduled) % (len(tree.next) - len(noRoom))
+		converging = false
 
 		for _, subtree := range tree.next {
 			if noRoom != nil {
@@ -799,6 +801,7 @@ func (s *Scheduler) scheduleNTasksOnSubtree(ctx context.Context, n int, taskGrou
 			}
 			subtreeTasks := subtree.tasks
 			if subtreeTasks < desiredTasksPerBranch || (subtreeTasks == desiredTasksPerBranch && remainder > 0) {
+				converging = true
 				tasksToAssign := desiredTasksPerBranch - subtreeTasks
 				if remainder > 0 {
 					tasksToAssign++

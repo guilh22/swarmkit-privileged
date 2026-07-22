@@ -1099,7 +1099,7 @@ func (d *Dispatcher) Assignments(r *api.AssignmentsRequest, stream api.Dispatche
 			// matcher, we can discard the first argument (the prototype) and
 			// instead pass the desired node ID in as part of a closure.
 			Checks: []api.VolumeCheckFunc{
-				func(v1, v2 *api.Volume) bool {
+				func(_, v2 *api.Volume) bool {
 					for _, status := range v2.PublishStatus {
 						if status.NodeID == nodeID {
 							return true
@@ -1174,6 +1174,9 @@ func (d *Dispatcher) Assignments(r *api.AssignmentsRequest, stream api.Dispatche
 				case api.EventUpdateVolume:
 					d.store.View(func(readTx store.ReadTx) {
 						vol := store.GetVolume(readTx, v.Volume.ID)
+						if vol == nil {
+							return
+						}
 						// check through the PublishStatus to see if there is
 						// one for this node.
 						for _, status := range vol.PublishStatus {

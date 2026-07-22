@@ -1,8 +1,8 @@
 # syntax=docker/dockerfile:1
 
-ARG GO_VERSION=1.18.9
-ARG PROTOC_VERSION=3.11.4
-ARG GOLANGCI_LINT_VERSION=v1.50.1
+ARG GO_VERSION=1.24
+ARG PROTOC_VERSION=3.14.0
+ARG GOLANGCI_LINT_VERSION=v2.12.2
 ARG DEBIAN_FRONTEND=noninteractive
 
 FROM --platform=$BUILDPLATFORM golang:${GO_VERSION}-bullseye AS gobase
@@ -49,10 +49,9 @@ RUN --mount=type=bind,target=.,rw \
     make bin/protoc-gen-gogoswarm && mv bin/protoc-gen-gogoswarm /usr/local/bin/
 
 FROM gobase AS protobuild
-RUN --mount=type=bind,source=tools,target=. \
-    --mount=target=/go/pkg/mod,type=cache \
+RUN --mount=type=bind,target=. \
     --mount=type=cache,target=/root/.cache \
-    go install -mod=mod github.com/containerd/protobuild
+    go install tool github.com/containerd/protobuild
 
 FROM gobase AS generate-base
 ARG DEBIAN_FRONTEND
@@ -104,8 +103,17 @@ ARG DEBIAN_FRONTEND
 RUN apt-get install -y --no-install-recommends libgcc-10-dev libc6-dev
 RUN --mount=type=bind,target=. \
     --mount=type=cache,target=/root/.cache \
-    --mount=from=golangci-lint,source=/usr/bin/golangci-lint,target=/usr/bin/golangci-lint \
-    golangci-lint run ./... && cd swarmd && golangci-lint run ./...
+    --mount=from=golangci-lint,source=/usr/bin/golangci-lint,target=/usr/bin/golangci-lint <<EOT
+  set -e
+  config=$(pwd)/.golangci.yml
+  for dir in . swarmd; do
+    (
+      set -x
+      cd $dir
+      golangci-lint run --config "$config" ./...
+    )
+  done
+EOT
 
 FROM gobase AS fmt-proto
 RUN --mount=type=bind,target=. \
@@ -117,7 +125,7 @@ ENV GO111MODULE=on
 # install the dependencies from `make setup`
 # we only copy `direct.mk` to avoid busting the cache too easily
 COPY direct.mk .
-COPY tools .
+COPY go.* .
 RUN make --file=direct.mk setup
 # now we can copy the rest
 COPY . .

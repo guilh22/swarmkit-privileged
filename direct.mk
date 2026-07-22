@@ -41,9 +41,9 @@ version/version.go:
 .PHONY: setup
 setup: ## install dependencies
 	@echo "🐳 $@"
-	# install golangci-lint version v1.50.1 to ./bin/golangci-lint
-	@curl -fsSL https://raw.githubusercontent.com/golangci/golangci-lint/v1.50.1/install.sh | sh -s v1.50.1
-	@(cd tools ; GO111MODULE=on go install github.com/containerd/protobuild)
+	# install golangci-lint to ./bin/golangci-lint
+	@curl -fsSL https://raw.githubusercontent.com/golangci/golangci-lint/v2.1.5/install.sh | sh -s v2.1.5
+	@go install tool github.com/containerd/protobuild
 
 .PHONY: generate
 generate: protos

@@ -9,20 +9,22 @@ import (
 	"math/big"
 	"math/rand"
 	"path/filepath"
+	"slices"
 	"strings"
 	"sync"
 	"time"
 
 	cfconfig "github.com/cloudflare/cfssl/config"
 	events "github.com/docker/go-events"
+	"github.com/opencontainers/go-digest"
+	"github.com/pkg/errors"
+	"google.golang.org/grpc/credentials"
+
 	"github.com/moby/swarmkit/v2/api"
 	"github.com/moby/swarmkit/v2/connectionbroker"
 	"github.com/moby/swarmkit/v2/identity"
 	"github.com/moby/swarmkit/v2/log"
 	"github.com/moby/swarmkit/v2/watch"
-	"github.com/opencontainers/go-digest"
-	"github.com/pkg/errors"
-	"google.golang.org/grpc/credentials"
 )
 
 const (
@@ -58,6 +60,17 @@ var (
 	// digest)
 	errInvalidJoinToken = errors.New("invalid join token")
 )
+
+// strongTLSCiphers defines a secure, modern set of TLS cipher suites
+// with known weak algorithms removed.
+var strongTLSCiphers = []uint16{
+	tls.TLS_ECDHE_ECDSA_WITH_AES_256_GCM_SHA384,
+	tls.TLS_ECDHE_RSA_WITH_AES_256_GCM_SHA384,
+	tls.TLS_ECDHE_ECDSA_WITH_AES_128_GCM_SHA256,
+	tls.TLS_ECDHE_RSA_WITH_AES_128_GCM_SHA256,
+	tls.TLS_ECDHE_ECDSA_WITH_CHACHA20_POLY1305_SHA256,
+	tls.TLS_ECDHE_RSA_WITH_CHACHA20_POLY1305_SHA256,
+}
 
 // SecurityConfig is used to represent a node's security configuration. It includes information about
 // the RootCA and ServerTLSCreds/ClientTLSCreds transport authenticators to be used for MTLS
@@ -648,7 +661,9 @@ func NewServerTLSConfig(certs []tls.Certificate, rootCAPool *x509.CertPool) (*tl
 		RootCAs:                  rootCAPool,
 		ClientCAs:                rootCAPool,
 		PreferServerCipherSuites: true,
+		CipherSuites:             slices.Clone(strongTLSCiphers),
 		MinVersion:               tls.VersionTLS12,
+		NextProtos:               alpnProtoStr,
 	}, nil
 }
 
@@ -663,6 +678,7 @@ func NewClientTLSConfig(certs []tls.Certificate, rootCAPool *x509.CertPool, serv
 		ServerName:   serverName,
 		Certificates: certs,
 		RootCAs:      rootCAPool,
+		CipherSuites: slices.Clone(strongTLSCiphers),
 		MinVersion:   tls.VersionTLS12,
 	}, nil
 }

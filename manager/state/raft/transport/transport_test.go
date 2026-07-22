@@ -7,14 +7,16 @@ import (
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
-	"go.etcd.io/etcd/raft/v3"
-	"go.etcd.io/etcd/raft/v3/raftpb"
+	"go.etcd.io/raft/v3"
+	"go.etcd.io/raft/v3/raftpb"
 )
+
+const testSnapSize = 1 << 20 // 1 MB
 
 // Build a snapshot message where each byte in the data is of the value (index % sizeof(byte))
 func newSnapshotMessage(from uint64, to uint64) raftpb.Message {
-	data := make([]byte, GRPCMaxMsgSize)
-	for i := 0; i < GRPCMaxMsgSize; i++ {
+	data := make([]byte, testSnapSize)
+	for i := 0; i < testSnapSize; i++ {
 		data[i] = byte(i % (1 << 8))
 	}
 
@@ -22,7 +24,7 @@ func newSnapshotMessage(from uint64, to uint64) raftpb.Message {
 		Type: raftpb.MsgSnap,
 		From: from,
 		To:   to,
-		Snapshot: raftpb.Snapshot{
+		Snapshot: &raftpb.Snapshot{
 			Data: data,
 			// Include the snapshot size in the Index field for testing.
 			Metadata: raftpb.SnapshotMetadata{
@@ -101,6 +103,51 @@ func testSend(ctx context.Context, c *mockCluster, from uint64, to []uint64, msg
 			}
 		}
 	}
+}
+
+// TestSplitSnapshotDataDoesNotMutateInput is a regression test for #3231.
+// Before the fix, splitSnapshotData did a shallow copy of the raft message
+// and re-sliced the shared Snapshot.Data on each iteration, shrinking the
+// original slice's capacity and eventually panicking with
+// "slice bounds out of range".
+func TestSplitSnapshotDataDoesNotMutateInput(t *testing.T) {
+	ctx := context.Background()
+
+	// Build a MsgSnap whose Snapshot.Data clearly exceeds GRPCMaxMsgSize so
+	// that the split loop runs multiple iterations (where the bug manifests).
+	const dataSize = 3 * GRPCMaxMsgSize
+	data := make([]byte, dataSize)
+	for i := range data {
+		data[i] = byte(i % (1 << 8))
+	}
+	m := raftpb.Message{
+		Type: raftpb.MsgSnap,
+		From: 1,
+		To:   2,
+		Snapshot: &raftpb.Snapshot{
+			Data: data,
+			Metadata: raftpb.SnapshotMetadata{
+				Index: uint64(len(data)),
+			},
+		},
+	}
+	origData := m.Snapshot.Data
+	origLen, origCap := len(origData), cap(origData)
+
+	msgs := splitSnapshotData(ctx, &m)
+	require.Greater(t, len(msgs), 1, "data larger than GRPCMaxMsgSize must split into multiple chunks")
+
+	// Chunks must reassemble to the original data.
+	var assembled []byte
+	for _, msg := range msgs {
+		assembled = append(assembled, msg.Message.Snapshot.Data...)
+	}
+	assert.Equal(t, data, assembled)
+
+	// The input message's Snapshot.Data must be untouched (regression guard).
+	assert.Equal(t, origLen, len(m.Snapshot.Data))
+	assert.Equal(t, origCap, cap(m.Snapshot.Data))
+	assert.Equal(t, data, m.Snapshot.Data)
 }
 
 func TestSend(t *testing.T) {
